@@ -1,0 +1,71 @@
+
+Servlets for node.js
+--------------------
+
+This used to be in the hxNode project but since it's expanded a little it's now
+in it's own project.
+
+A typical servlet definition looks like this:
+
+  public static function
+  makeSecondaryLoginServlet() {
+    var secondaryLogin = new Servlet<AccErr,SLoginPkt>(SLOGIN,function(req:IRequest,res) {
+        var
+        session:Session = field(req.validated,SESSID),
+        accType:AccountType = field(req.validated,ACCTYPE);
+       
+        Accounts.userFromSession(session,function(user) {
+            if (user == null)
+              res(AccErr.NO_USER,null);
+            else {
+              AccountMgr.accountByType(user,accType,function(account) {
+                var out:SLoginPkt = {balance:round2(account.balance)};
+                res(AccErr.OK,out);
+                });
+            }
+          });
+      },"/my/path/");
+    
+    secondaryLogin.required([SESSID,ACCTYPE]);
+    secondaryLogin.validate(SESSID,NO_SESSION,Accounts.validateSession);
+    secondaryLogin.validate(ACCTYPE,NO_ACCTYPE,AccountMgr.validateAccountType);
+  }
+
+I use Type.enumContructor to turn SLOGIN into the "SLOGIN" servlet name string, i should
+probably remove that for generalities sake but it gives me type checking of servlet names
+over client/server. Thus the servlet is accessed at "/my/path/SLOGIN" if the prefix is not
+given then "/SLOGIN".
+
+Strongly typed status and output e.g. <AccErr,SLoginPkt> whose instances are passed to res
+the result function. The default view representation is to Node.stringify the results into
+a packet like this
+
+{ "status":"OK","packet":"stringified results" }
+
+however, there is a mechanism to alter the view for each servlet,the results are passed to a
+registered view generator instead, e.g.
+
+secondaryLogin.addView("ser", new Serialized());
+
+and then adding a view=ser to your request you can get the output in the desired representation.
+There are Csv, Serialized and HtmlTable views in the view directory.
+
+You can tweak all servlets like this ...
+
+    Servlet.each(function(s) {
+        s.addView("csv",new Csv());
+      });
+
+Required fields can be provided a validation function which returns either a null or a validated value. You can get hold of the validated value byt req.validated object. I use this accessor function to pick out what I want
+
+  field(prms:Dynamic,e:Dynamic):Dynamic {    
+    return Reflect.field(prms,Type.enumConstructor(e));
+  }
+
+Raw parameters can be picked out from the req.params object like this
+
+  userID =  field(req.params,USERID)
+
+  There is also a JSONP servlet which provides a JSONP result if you're expecting jsonp calls.
+
+  
